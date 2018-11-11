@@ -121,15 +121,27 @@ class TimedObject:
     def tick(self):
         # if we're in the time range, do the action.
         if pyxel.frame_count <= self.stoppingTick and pyxel.frame_count >= self.startingTick and not self.dodraw:
-            print("{} is ticking on {} of {}".format(self.name, pyxel.frame_count, self.stoppingTick))
+            #print("{} is ticking on {} of {}".format(self.name, pyxel.frame_count, self.stoppingTick))
             self.function()
 
     def draw(self):
         # if we're in the time range, do the action.
         if pyxel.frame_count <= self.stoppingTick and pyxel.frame_count >= self.startingTick and self.dodraw:
-            print("{} is drawing on {} of {}".format(self.name, pyxel.frame_count, self.stoppingTick))
+            #print("{} is drawing on {} of {}".format(self.name, pyxel.frame_count, self.stoppingTick))
             self.function()
 
+class Hotspot():
+    # name, x1, y1, x2, y2
+    # Hotspot("green_button", 6, 5, 7, 7)
+    def __init__(self, name, x1, y1, x2, y2):
+        self.name = name
+        self.x1 = x1
+        self.y1 = y1
+        self.x2 = x2
+        self.y2 = y2
+
+    def contains(self, x, y):
+        return self.x1 <= x <= self.x2 and self.y1 <= y <= self.y2
 
 class Location():
     def draw(self):
@@ -184,6 +196,41 @@ class Entity(Location):
         self.ty = y
         self.entityType = entityType
 
+    # draw a item at a location
+    def draw(self):
+        if self.entityType == "control":
+            self.game.gui.drawTexture(self.tx, self.ty, 3, 0, isTrans = True)
+        else:
+            self.game.gui.drawMissingTexture(self.tx, self.ty)
+
+    def mouse(self, rx, ry):
+
+        hotspots = []
+        hotspots.append(Hotspot("green_button", 6, 5, 7, 7))
+        hotspots.append(Hotspot("yellow_button", 6, 9, 7, 10))
+        hotspots.append(Hotspot("blue_button", 9, 5, 10, 6))
+        hotspots.append(Hotspot("red_button", 9, 8, 10, 10))
+
+        bname = ""
+        for hot in hotspots:
+            if hot.contains(rx, ry):
+                bname = hot.name
+                break
+        if bname == "":
+            self.game.to.append(TimedObject("controlPanel", pyxel.frame_count, 30, self.i_am_ctl_panel))
+        else:
+            self.game.to.append(TimedObject("controlPanelErr", pyxel.frame_count, 30, self.i_am_bad_panel))
+
+    def i_am_bad_panel(self):
+        lx = self.tx * self.game.TILESIZE + 2
+        ly = self.ty * self.game.TILESIZE - 18
+        self.game.gui.chatbox(lx, ly, "You broke me.\nYou loose.", carrot=True)
+
+    def i_am_ctl_panel(self):
+        lx = self.tx * self.game.TILESIZE + 2
+        ly = self.ty * self.game.TILESIZE - 18
+        self.game.gui.chatbox(lx, ly, "I am a control panel.\nClick me carefully", carrot=True)
+
 class Thing(Location):
     def __init__(self, game, x, y, thing):
         Location.__init__(self, game)
@@ -201,6 +248,8 @@ class Thing(Location):
     def draw(self):
         if self.thing == "wall":
             self.game.gui.drawTexture(self.tx, self.ty, 1, 0)
+        elif self.thing == "sandwich":
+            self.game.gui.drawTexture(self.tx, self.ty, 0, 1, isTrans=True)
         else:
             self.game.gui.drawMissingTexture(self.tx, self.ty)
 
@@ -250,7 +299,7 @@ class Game:
         self.locations.append(Thing(self, 7, 3, "sandwich"))
 
         # add entites (they interact/move?)
-        self.locations.append(Entity(self, 3, 3, "Control"))
+        self.locations.append(Entity(self, 3, 3, "control"))
 
         self.to = []
         self.to.append(TimedObject("title_screen", 0, 60, self.player.drawTitle))
