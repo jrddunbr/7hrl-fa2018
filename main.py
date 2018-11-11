@@ -96,7 +96,32 @@ class Gui:
         for y in range(self.game.tileY):
             pyxel.line(0, (y * self.game.TILESIZE), self.game.TILESIZE * self.game.tileY, self.game.TILESIZE * y, Color.DARK_GRAY)
 
+class TimedObject:
+    def __init__(self, name, startingTick, duration, function, draw=True):
+        self.name = name
+        self.startingTick = startingTick
+        self.duration = duration
+        self.stoppingTick = startingTick + duration
+        self.function = function
+        self.dodraw = draw
+
+    def tick(self):
+        # if we're in the time range, do the action.
+        if pyxel.frame_count <= self.stoppingTick and pyxel.frame_count >= self.startingTick and not self.dodraw:
+            print("{} is ticking on {} of {}".format(self.name, pyxel.frame_count, self.stoppingTick))
+            self.function()
+
+    def draw(self):
+        # if we're in the time range, do the action.
+        if pyxel.frame_count <= self.stoppingTick and pyxel.frame_count >= self.startingTick and self.dodraw:
+            print("{} is drawing on {} of {}".format(self.name, pyxel.frame_count, self.stoppingTick))
+            self.function()
+
+
 class Location():
+    def draw(self):
+        print("{} is on {} of {}".format(self.name, pyxel.frame_count, self.stoppingTick))
+        # if we're in the time range, do the action.
     def __init__(self, game):
         self.game = game
         self.tx = 0
@@ -126,6 +151,19 @@ class Player(Location):
         # render player location
         pyxel.rect(self.game.tx * self.game.TILESIZE, self.game.ty * self.game.TILESIZE, self.game.tx * self.game.TILESIZE + 15, self.game.ty * self.game.TILESIZE + 15, Color.LIGHT_BLUE)
 
+    def mouse(self, rx, ry):
+        self.game.to.append(TimedObject("mouseClickPlayer", pyxel.frame_count, 30, self.drawClickMessage))
+
+    def drawTitle(self):
+        lx = self.tx * self.game.TILESIZE + 2
+        ly = self.ty * self.game.TILESIZE - 12
+        self.game.gui.chatbox(lx, ly, "DEATH BY HVAC", carrot=True)
+
+    def drawClickMessage(self):
+        lx = self.game.tx * self.game.TILESIZE + 2
+        ly = self.game.ty * self.game.TILESIZE - 18
+        self.game.gui.chatbox(lx, ly, "I am the player.\nStop clicking me.", carrot=True)
+
 class Entity(Location):
     def __init__(self, game, x, y, entityType):
         Location.__init__(self, game)
@@ -150,13 +188,21 @@ class Thing(Location):
     def draw(self):
         pyxel.blt(self.tx * self.game.TILESIZE, self.ty * self.game.TILESIZE, 1, 0, 0, self.game.TILESIZE, self.game.TILESIZE)
 
+    def mouse(self, rx, ry):
+        self.game.to.append(TimedObject("mouseClickWall", pyxel.frame_count, 30, self.i_am_a_wall))
+
+    def i_am_a_wall(self):
+        lx = self.tx * self.game.TILESIZE + 2
+        ly = self.ty * self.game.TILESIZE - 18
+        self.game.gui.chatbox(lx, ly, "I am a wall.\nI don't do anything.", carrot=True)
+
 class Game:
     def __init__(self):
 
         # constants
         self.TILESIZE = 16
-        self.tileX = 15
-        self.tileY = 15
+        self.tileX = 12
+        self.tileY = 12
 
         # init the screen
         pyxel.init(self.TILESIZE * self.tileX, self.TILESIZE * self.tileY)
@@ -190,6 +236,9 @@ class Game:
         # add entites (they interact/move?)
         self.locations.append(Entity(self, 3, 3, "Control"))
 
+        self.to = []
+        self.to.append(TimedObject("title_screen", 0, 60, self.player.drawTitle))
+
         # doot doot!
         pyxel.run(self.update, self.draw)
 
@@ -213,6 +262,13 @@ class Game:
         # do game updates
         for loc in self.locations:
             loc.tick()
+
+        # update TimedObject's
+        for to in self.to:
+            if pyxel.frame_count > to.stoppingTick:
+                self.to.remove(to)
+            else:
+                to.tick()
 
     def draw(self):
         # clear the screen
@@ -254,11 +310,9 @@ class Game:
         for loc in self.locations:
             loc.draw()
 
-        # draw any chatboxes
-        if pyxel.frame_count < 120:
-            lx = self.tx * self.TILESIZE + 2
-            ly = self.ty * self.TILESIZE - 12
-            self.gui.chatbox(lx, ly, "DEATH BY HVAC", carrot=True)
+        # render TimedObject's
+        for to in self.to:
+            to.draw()
 
         # draw player
         self.player.draw()
