@@ -2,12 +2,6 @@
 
 import pyxel, enum
 
-#
-# rect: (x1, y1, x2, y2, color) draws filled rectangle
-# rectb: (x1, y1, x2, y2, color) draws border of rectangle
-# text: (x, y, text, color) draws text to screen
-#
-
 class Color(enum.IntEnum):
     BLACK = 0
     DARK_BLUE = 1
@@ -96,6 +90,25 @@ class Gui:
         for y in range(self.game.tileY):
             pyxel.line(0, (y * self.game.TILESIZE), self.game.TILESIZE * self.game.tileY, self.game.TILESIZE * y, Color.DARK_GRAY)
 
+    def drawTexture(self, tx, ty, ix, iy, isTrans=False, transColor=Color.BLACK):
+        # do math
+        x = self.game.TILESIZE * tx
+        y = self.game.TILESIZE * ty
+        # do render
+        if isTrans:
+            pyxel.blt(x, y, 0, ix * self.game.TILESIZE, iy * self.game.TILESIZE, self.game.TILESIZE, self.game.TILESIZE, colkey=transColor)
+        else:
+            pyxel.blt(x, y, 0, ix * self.game.TILESIZE, iy * self.game.TILESIZE, self.game.TILESIZE, self.game.TILESIZE)
+
+    def drawMissingTexture(self, tx, ty):
+        # math
+        x = self.game.TILESIZE * tx
+        y = self.game.TILESIZE * ty
+        # render
+        pyxel.rect(x, y, x + 15, y + 15, Color.LIGHT_GRAY)
+        pyxel.text(x + 6, y + 5, "X", Color.BLACK)
+
+
 class TimedObject:
     def __init__(self, name, startingTick, duration, function, draw=True):
         self.name = name
@@ -129,7 +142,7 @@ class Location():
 
     # draw a item at a location
     def draw(self):
-        pyxel.rect(self.tx * self.game.TILESIZE, self.ty * self.game.TILESIZE, self.tx * self.game.TILESIZE + 15, self.ty * self.game.TILESIZE + 15, Color.LIGHT_GRAY)
+        self.game.gui.drawMissingTexture(self.tx, self.ty)
 
     # tick an item at a location
     def tick(self):
@@ -149,7 +162,7 @@ class Player(Location):
 
     def draw(self):
         # render player location
-        pyxel.rect(self.game.tx * self.game.TILESIZE, self.game.ty * self.game.TILESIZE, self.game.tx * self.game.TILESIZE + 15, self.game.ty * self.game.TILESIZE + 15, Color.LIGHT_BLUE)
+        self.game.gui.drawTexture(self.tx, self.ty, 0, 0, isTrans=True)
 
     def mouse(self, rx, ry):
         self.game.to.append(TimedObject("mouseClickPlayer", pyxel.frame_count, 30, self.drawClickMessage))
@@ -186,15 +199,18 @@ class Thing(Location):
         self.solid = solid
 
     def draw(self):
-        pyxel.blt(self.tx * self.game.TILESIZE, self.ty * self.game.TILESIZE, 1, 0, 0, self.game.TILESIZE, self.game.TILESIZE)
+        if self.thing == "wall":
+            self.game.gui.drawTexture(self.tx, self.ty, 1, 0)
+        else:
+            self.game.gui.drawMissingTexture(self.tx, self.ty)
 
     def mouse(self, rx, ry):
-        self.game.to.append(TimedObject("mouseClickWall", pyxel.frame_count, 30, self.i_am_a_wall))
+        self.game.to.append(TimedObject("mouseClickWall", pyxel.frame_count, 30, self.i_am_a))
 
-    def i_am_a_wall(self):
+    def i_am_a(self):
         lx = self.tx * self.game.TILESIZE + 2
         ly = self.ty * self.game.TILESIZE - 18
-        self.game.gui.chatbox(lx, ly, "I am a wall.\nI don't do anything.", carrot=True)
+        self.game.gui.chatbox(lx, ly, "I am a {}.\nI don't do anything.".format(self.thing), carrot=True)
 
 class Game:
     def __init__(self):
@@ -212,8 +228,7 @@ class Game:
         self.player = Player(self)
 
         # load some stuff
-        pyxel.image(1).load(0, 0, "assets/wall.png")
-        pyxel.image(0).load(0, 0, "assets/mainTile.png")
+        pyxel.image(0).load(0, 0, "assets/tiles.png")
 
         # set player position
         self.tx = int(self.tileX / 2)
@@ -232,6 +247,7 @@ class Game:
         self.locations.append(Thing(self, 2, 1, "wall"))
         self.locations.append(Thing(self, 3, 1, "wall"))
         self.locations.append(Thing(self, 4, 1, "wall"))
+        self.locations.append(Thing(self, 7, 3, "sandwich"))
 
         # add entites (they interact/move?)
         self.locations.append(Entity(self, 3, 3, "Control"))
@@ -277,7 +293,7 @@ class Game:
         # draw tile background
         for x in range(self.tileX):
             for y in range(self.tileY):
-                pyxel.blt(x * self.TILESIZE, y * self.TILESIZE, 0, 0, 0, self.TILESIZE, self.TILESIZE)
+                self.gui.drawTexture(x, y, 2, 0)
 
         # motion handling stuff
         if pyxel.btn(pyxel.KEY_W):
@@ -310,12 +326,12 @@ class Game:
         for loc in self.locations:
             loc.draw()
 
-        # render TimedObject's
-        for to in self.to:
-            to.draw()
-
         # draw player
         self.player.draw()
+
+        # render TimedObject's (typicall chat bubbles)
+        for to in self.to:
+            to.draw()
 
         # render mouse cursor
         self.gui.renderCursor(design=1)
