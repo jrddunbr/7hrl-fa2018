@@ -68,7 +68,14 @@ class Gui:
         return x + 3, lowest + 4 # two pixels drectly below text area carrot
 
     def renderCursor(self, design=0, color=Color.LIGHT_GRAY):
-        if design == 1:
+        if design == 2:
+            pyxel.pix(pyxel.mouse_x - 1, pyxel.mouse_y, color)
+            pyxel.pix(pyxel.mouse_x + 1, pyxel.mouse_y, color)
+            pyxel.pix(pyxel.mouse_x, pyxel.mouse_y - 1, color)
+            pyxel.pix(pyxel.mouse_x, pyxel.mouse_y + 1, color)
+            pyxel.pix(pyxel.mouse_x, pyxel.mouse_y, color)
+            self.chatbox(pyxel.mouse_x + 2, pyxel.mouse_y + 2, "({},{})\n{},{}".format(pyxel.mouse_x, pyxel.mouse_y, self.game.tx, self.game.ty))
+        elif design == 1:
             pyxel.pix(pyxel.mouse_x - 1, pyxel.mouse_y, color)
             pyxel.pix(pyxel.mouse_x + 1, pyxel.mouse_y, color)
             pyxel.pix(pyxel.mouse_x, pyxel.mouse_y - 1, color)
@@ -89,6 +96,30 @@ class Gui:
         for y in range(self.game.tileY):
             pyxel.line(0, (y * self.game.TILESIZE), self.game.TILESIZE * self.game.tileY, self.game.TILESIZE * y, Color.DARK_GRAY)
 
+class Entity:
+    def __init__(self, game):
+        self.game = game
+
+    def drawPlayer(self):
+        # render player location
+        pyxel.rect(self.game.tx * self.game.TILESIZE, self.game.ty * self.game.TILESIZE, self.game.tx * self.game.TILESIZE + 15, self.game.ty * self.game.TILESIZE + 15, Color.LIGHT_BLUE)
+
+class Thing:
+    def __init__(self, game, x, y, thing):
+        self.game = game
+        self.solid = True
+        self.tx = x
+        self.ty = y
+        self.thing = thing
+
+    def isSolid(self):
+        return self.solid
+
+    def setSolid(self, solid = True):
+        self.solid = solid
+
+    def drawThing(self):
+        pyxel.blt(self.tx * self.game.TILESIZE, self.ty * self.game.TILESIZE, 1, 0, 0, self.game.TILESIZE, self.game.TILESIZE)
 
 class Game:
     def __init__(self):
@@ -101,31 +132,75 @@ class Game:
         pyxel.init(self.TILESIZE * self.tileX, self.TILESIZE * self.tileY)
         #pyxel.mouse(True)
         self.gui = Gui(self)
+        self.entity = Entity(self)
+
+        pyxel.image(1).load(0, 0, "assets/wall.png")
+        pyxel.image(0).load(0, 0, "assets/mainTile.png")
+
         self.renderGrid = True
+
+        self.tx = 2
+        self.ty = 2
+
+        self.vx = 0
+        self.vy = 0
+
+        self.things = []
+        self.things.append(Thing(self, 1, 1, "wall"))
+        self.things.append(Thing(self, 2, 1, "wall"))
+        self.things.append(Thing(self, 3, 1, "wall"))
+        self.things.append(Thing(self, 4, 1, "wall"))
+
         pyxel.run(self.update, self.draw)
 
     def update(self):
         # do game updates
         self.renderGrid = not self.renderGrid
 
+        # handle player movements
+        self.tx += self.vx
+        self.ty += self.vy
+        self.vx = 0
+        self.vy = 0
+
     def draw(self):
         # clear the screen
-        pyxel.cls(0)
+        pyxel.cls(Color.BLACK)
 
-        # draw things
+        # draw tile background
+        for x in range(self.tileX):
+            for y in range(self.tileY):
+                pyxel.blt(x * self.TILESIZE, y * self.TILESIZE, 0, 0, 0, self.TILESIZE, self.TILESIZE)
 
-        # draw 16x16 square for reference
-        pyxel.rect(16, 16, 31, 31, Color.LIGHT_PURPLE)
+        # draw "things"
+        for thing in self.things:
+            thing.drawThing()
 
-        # some test chatboxes
-        self.gui.chatbox(20, 20, "hello, welcome to HVAC")
-        self.gui.chatbox(20, 40, "hello,\nwelcome to HVAC")
-        self.gui.chatbox(20, 60, "hello,\nwelcome to hvac,\nglad you could make it")
-        x, y = self.gui.chatbox(20, 85, "1\n 2 \n 3\n4", carrot=True)
-        pyxel.pix(x, y, Color.GREEN)
+        # motion handling stuff
+        if pyxel.btn(pyxel.KEY_W):
+            print("W pressed")
+            if self.ty != 0:
+                self.vy = -1
+
+        if pyxel.btn(pyxel.KEY_A):
+            print("A pressed")
+            if self.tx != 0:
+                self.vx = -1
+
+        if pyxel.btn(pyxel.KEY_S):
+            print("S pressed")
+            if self.ty != self.tileY - 1:
+                self.vy = 1
+
+        if pyxel.btn(pyxel.KEY_D):
+            print("D pressed")
+            if self.tx!= self.tileX - 1:
+                self.vx = 1
+
+        # draw player
+        self.entity.drawPlayer()
 
         # render mouse cursor
         self.gui.renderCursor(design=1)
-
 
 Game()
