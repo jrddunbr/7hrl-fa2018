@@ -96,17 +96,46 @@ class Gui:
         for y in range(self.game.tileY):
             pyxel.line(0, (y * self.game.TILESIZE), self.game.TILESIZE * self.game.tileY, self.game.TILESIZE * y, Color.DARK_GRAY)
 
-class Entity:
+class Location():
     def __init__(self, game):
         self.game = game
+        self.tx = 0
+        self.ty = 0
 
-    def drawPlayer(self):
+    # draw a item at a location
+    def draw(self):
+        pyxel.rect(self.tx * self.game.TILESIZE, self.ty * self.game.TILESIZE, self.tx * self.game.TILESIZE + 15, self.ty * self.game.TILESIZE + 15, Color.LIGHT_GRAY)
+
+    # tick an item at a location
+    def tick(self):
+        pass
+
+    # interact with the mouse
+    def mouse(self, rx, ry):
+        print("I am a {} and I interacted with the mouse at {}, {}!".format(type(self), rx, ry))
+
+class Player(Location):
+    def __init__(self, game):
+        Location.__init__(self, game)
+
+    def tick(self):
+        self.tx = self.game.tx
+        self.ty = self.game.ty
+
+    def draw(self):
         # render player location
         pyxel.rect(self.game.tx * self.game.TILESIZE, self.game.ty * self.game.TILESIZE, self.game.tx * self.game.TILESIZE + 15, self.game.ty * self.game.TILESIZE + 15, Color.LIGHT_BLUE)
 
-class Thing:
+class Entity(Location):
+    def __init__(self, game, x, y, entityType):
+        Location.__init__(self, game)
+        self.tx = x
+        self.ty = y
+        self.entityType = entityType
+
+class Thing(Location):
     def __init__(self, game, x, y, thing):
-        self.game = game
+        Location.__init__(self, game)
         self.solid = True
         self.tx = x
         self.ty = y
@@ -118,50 +147,72 @@ class Thing:
     def setSolid(self, solid = True):
         self.solid = solid
 
-    def drawThing(self):
+    def draw(self):
         pyxel.blt(self.tx * self.game.TILESIZE, self.ty * self.game.TILESIZE, 1, 0, 0, self.game.TILESIZE, self.game.TILESIZE)
 
 class Game:
     def __init__(self):
 
+        # constants
         self.TILESIZE = 16
-
         self.tileX = 15
         self.tileY = 15
 
+        # init the screen
         pyxel.init(self.TILESIZE * self.tileX, self.TILESIZE * self.tileY)
-        #pyxel.mouse(True)
-        self.gui = Gui(self)
-        self.entity = Entity(self)
 
+        # create the GUI and the Player objects
+        self.gui = Gui(self)
+        self.player = Player(self)
+
+        # load some stuff
         pyxel.image(1).load(0, 0, "assets/wall.png")
         pyxel.image(0).load(0, 0, "assets/mainTile.png")
 
-        self.renderGrid = True
-
-        self.tx = 2
-        self.ty = 2
-
+        # set player position
+        self.tx = int(self.tileX / 2)
+        self.ty = int(self.tileY / 2)
         self.vx = 0
         self.vy = 0
 
-        self.things = []
-        self.things.append(Thing(self, 1, 1, "wall"))
-        self.things.append(Thing(self, 2, 1, "wall"))
-        self.things.append(Thing(self, 3, 1, "wall"))
-        self.things.append(Thing(self, 4, 1, "wall"))
+        # all locations where something can exist
+        self.locations = []
 
+        # add player
+        self.locations.append(self.player)
+
+        # add structures/objects
+        self.locations.append(Thing(self, 1, 1, "wall"))
+        self.locations.append(Thing(self, 2, 1, "wall"))
+        self.locations.append(Thing(self, 3, 1, "wall"))
+        self.locations.append(Thing(self, 4, 1, "wall"))
+
+        # add entites (they interact/move?)
+        self.locations.append(Entity(self, 3, 3, "Control"))
+
+        # doot doot!
         pyxel.run(self.update, self.draw)
 
     def update(self):
-        # do game updates
-        self.renderGrid = not self.renderGrid
-
         # handle player movements
-        self.tx += self.vx
-        self.ty += self.vy
+        px = self.tx + self.vx
+        py = self.ty + self.vy
         self.vx = 0
         self.vy = 0
+
+        goodMove = True
+        for thing in [x for x in self.locations if isinstance(x, Thing)]:
+            if (thing.tx == px and thing.ty == py) and thing.isSolid():
+                goodMove = False
+                print("bad move, because {},{} has item".format(px, py))
+
+        if goodMove:
+            self.tx = px
+            self.ty = py
+
+        # do game updates
+        for loc in self.locations:
+            loc.tick()
 
     def draw(self):
         # clear the screen
@@ -172,33 +223,45 @@ class Game:
             for y in range(self.tileY):
                 pyxel.blt(x * self.TILESIZE, y * self.TILESIZE, 0, 0, 0, self.TILESIZE, self.TILESIZE)
 
-        # draw "things"
-        for thing in self.things:
-            thing.drawThing()
-
         # motion handling stuff
         if pyxel.btn(pyxel.KEY_W):
-            print("W pressed")
             if self.ty != 0:
                 self.vy = -1
 
         if pyxel.btn(pyxel.KEY_A):
-            print("A pressed")
             if self.tx != 0:
                 self.vx = -1
 
         if pyxel.btn(pyxel.KEY_S):
-            print("S pressed")
             if self.ty != self.tileY - 1:
                 self.vy = 1
 
         if pyxel.btn(pyxel.KEY_D):
-            print("D pressed")
             if self.tx!= self.tileX - 1:
                 self.vx = 1
 
+        if pyxel.btn(pyxel.MOUSE_LEFT_BUTTON):
+            tx = int(pyxel.mouse_x / self.TILESIZE)
+            ty = int(pyxel.mouse_y / self.TILESIZE)
+            px = pyxel.mouse_x % self.TILESIZE
+            py = pyxel.mouse_y % self.TILESIZE
+
+            for loc in self.locations:
+                if loc.tx == tx and loc.ty == ty:
+                    loc.mouse(px, py)
+
+        # draw everything
+        for loc in self.locations:
+            loc.draw()
+
+        # draw any chatboxes
+        if pyxel.frame_count < 120:
+            lx = self.tx * self.TILESIZE + 2
+            ly = self.ty * self.TILESIZE - 12
+            self.gui.chatbox(lx, ly, "DEATH BY HVAC", carrot=True)
+
         # draw player
-        self.entity.drawPlayer()
+        self.player.draw()
 
         # render mouse cursor
         self.gui.renderCursor(design=1)
